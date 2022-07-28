@@ -77,7 +77,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="overview.html">Overview</a></li><li class="chapter-item expanded "><a href="getting-started.html"><strong aria-hidden="true">1.</strong> Getting Started</a></li><li class="chapter-item expanded "><a href="cluster-controls.html"><strong aria-hidden="true">2.</strong> Cluster Controls</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="cluster-formation.html"><strong aria-hidden="true">2.1.</strong> Cluster Formation</a></li><li class="chapter-item expanded "><a href="dynamic-membership.html"><strong aria-hidden="true">2.2.</strong> Dynamic Membership</a></li></ol></li><li class="chapter-item expanded "><a href="metrics.html"><strong aria-hidden="true">3.</strong> Metrics</a></li><li class="chapter-item expanded "><a href="internal.html"><strong aria-hidden="true">4.</strong> Internal</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li><li class="chapter-item expanded "><a href="threading.html"><strong aria-hidden="true">4.2.</strong> Threads</a></li><li class="chapter-item expanded "><a href="replication.html"><strong aria-hidden="true">4.3.</strong> Replication</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="delete_log.html"><strong aria-hidden="true">4.3.1.</strong> Delete-conflicting-logs</a></li></ol></li><li class="chapter-item expanded "><a href="effective-membership.html"><strong aria-hidden="true">4.4.</strong> Effective Membership</a></li></ol></li><li class="chapter-item expanded "><a href="upgrade-tips.html"><strong aria-hidden="true">5.</strong> Upgrade Tips</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="overview.html">Overview</a></li><li class="chapter-item expanded "><a href="getting-started.html"><strong aria-hidden="true">1.</strong> Getting Started</a></li><li class="chapter-item expanded "><a href="cluster-controls.html"><strong aria-hidden="true">2.</strong> Cluster Controls</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="cluster-formation.html"><strong aria-hidden="true">2.1.</strong> Cluster Formation</a></li><li class="chapter-item expanded "><a href="dynamic-membership.html"><strong aria-hidden="true">2.2.</strong> Dynamic Membership</a></li><li class="chapter-item expanded "><a href="node-lifecycle.html"><strong aria-hidden="true">2.3.</strong> Node lifecycle</a></li></ol></li><li class="chapter-item expanded "><a href="metrics.html"><strong aria-hidden="true">3.</strong> Metrics</a></li><li class="chapter-item expanded "><a href="internal.html"><strong aria-hidden="true">4.</strong> Internal</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li><li class="chapter-item expanded "><a href="threading.html"><strong aria-hidden="true">4.2.</strong> Threads</a></li><li class="chapter-item expanded "><a href="vote.html"><strong aria-hidden="true">4.3.</strong> Vote</a></li><li class="chapter-item expanded "><a href="replication.html"><strong aria-hidden="true">4.4.</strong> Replication</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="delete_log.html"><strong aria-hidden="true">4.4.1.</strong> Delete-conflicting-logs</a></li></ol></li><li class="chapter-item expanded "><a href="effective-membership.html"><strong aria-hidden="true">4.5.</strong> Effective Membership</a></li></ol></li><li class="chapter-item expanded "><a href="upgrade-tips.html"><strong aria-hidden="true">5.</strong> Upgrade Tips</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -201,13 +201,17 @@ improve efficiency with a cluster with an even number of nodes.</p>
 </li>
 <li><input disabled="" type="checkbox"/>
 <p>Goal performance is 1,000,000 put/sec.</p>
+<p>Bench history:</p>
 <ul>
-<li>2022 Jul 01: 41,000 put/sec.</li>
+<li>2022 Jul 01: 41,000 put/sec; 23,255 ns/op;</li>
+<li>2022 Jul 07: 43,000 put/sec; 23,218 ns/op; Use <code>Progress</code> to track replication.</li>
+<li>2022 Jul 09: 45,000 put/sec; 21,784 ns/op; Batch purge applied log</li>
 </ul>
 <p>Run the benchmark: <code>make bench_cluster_of_3</code></p>
 <p>Benchmark setting:</p>
 <ul>
 <li>No network.</li>
+<li>In memory store.</li>
 <li>A cluster of 3 nodes on one server.</li>
 <li>Single client.</li>
 </ul>
@@ -267,6 +271,8 @@ This can be used for <a href="https://docs.rs/tracing/latest/tracing/index.html#
 <p>In this chapter we are going to build a key-value store cluster with <a href="https://github.com/datafuselabs/openraft">openraft</a>.</p>
 <p><a href="https://github.com/datafuselabs/openraft/tree/main/examples/raft-kv-memstore">examples/raft-kv-memstore</a>
 is the complete example application including the server, the client and a demo cluster.</p>
+<p><a href="https://github.com/datafuselabs/openraft/tree/main/examples/raft-kv-rocksdb">examples/raft-kv-rocksdb</a>
+is the complete example application including the server, the client and a demo cluster using rocksdb for persistant storage.</p>
 <hr />
 <p>Raft is a distributed consensus protocol designed to manage a replicated log containing state machine commands from clients.</p>
 <p>
@@ -375,6 +381,7 @@ pub fn test_mem_store() -&gt; anyhow::Result&lt;()&gt; {
 }
 <span class="boring">}
 </span></code></pre></pre>
+<p>There is a second example in <a href="https://github.com/datafuselabs/openraft/blob/main/rocksstore/src/test.rs">Test suite for RaftStorage</a> that showcases building a rocksdb backed store.</p>
 <h3 id="race-condition-about-raftstorage"><a class="header" href="#race-condition-about-raftstorage">Race condition about RaftStorage</a></h3>
 <p>In our design, there is at most one thread at a time writing data to it.
 But there may be several threads reading from it concurrently,
@@ -634,12 +641,9 @@ and immediately begin syncing logs from the leader.</p>
 </ul>
 <h2 id="raftchange_membershipnode_list-turn_to_learner"><a class="header" href="#raftchange_membershipnode_list-turn_to_learner"><code>Raft::change_membership(node_list, turn_to_learner)</code></a></h2>
 <p>This method will initiate a membership change and returns when the effective
-membership becomes <code>node_list</code>.</p>
-<p>If there are nodes in the given membership that is not a <code>Learner</code>, this method will add it
-as Learner first.
-Thus it is recommended that the application always call <code>Raft::add_learner</code> first.
-Otherwise, <code>Raft::change_membership</code> may block for long before committing the
-given membership and return.</p>
+membership becomes <code>node_list</code> and committed.</p>
+<p>If there are nodes in the given membership that is not a <code>Learner</code>, this method will fail.
+Thus the application should always call <code>Raft::add_learner</code> first.</p>
 <p>Once the new membership is committed, whether or not a <code>Voter</code> that is not in the new membership will
 revert to a <code>Learner</code> is base on the <code>turn_to_learner</code>.</p>
 <p>If <code>turn_to_learner</code> is true, then all the members which not exists in the new membership,
@@ -650,10 +654,6 @@ with <code>node_list</code> {3,4,5}, then:
 - If <code>turn_to_learner</code> is true, after commit the new membership is {&quot;members&quot;:{3,4,5}, &quot;learners&quot;:{1,2}}.
 - Otherwise if <code>turn_to_learner</code> is false, then the new membership is {&quot;members&quot;:{3,4,5}, &quot;learners&quot;:{}}, 
 in which the members not exists in the new membership just be removed from the cluster.</p>
-<h2 id="raftremove_membersmembers-turn_to_learner"><a class="header" href="#raftremove_membersmembers-turn_to_learner"><code>Raft::remove_members(members, turn_to_learner)</code></a></h2>
-<p>Remove members directly, <code>turn_to_learner</code> has the same meaning in <code>change_membership</code>.</p>
-<h2 id="raftadd_membersmembers"><a class="header" href="#raftadd_membersmembers"><code>Raft::add_members(members)</code></a></h2>
-<p>Add members directly.</p>
 <h2 id="extended-membership-change-algo"><a class="header" href="#extended-membership-change-algo">Extended membership change algo</a></h2>
 <p>Openraft tries to commit one or more membership logs to finally change the
 membership to <code>node_list</code>.
@@ -781,6 +781,63 @@ because log replication or voting will always see a higher <code>term_2</code> o
 <p>For the same reason, a candidate with log entry <code>m1</code> can never become a leader.</p>
 <p>∴ It is impossible that there are two leaders that both can commit a log entry.</p>
 <p>QED.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="node-life-cycle"><a class="header" href="#node-life-cycle">Node life cycle</a></h1>
+<ul>
+<li>
+<p>When a node is added with <code>Raft::add_learner()</code>, it starts to receive log
+replication from the leader at once, i.e., becomes a <code>Learner</code>.</p>
+</li>
+<li>
+<p>A learner becomes a <code>Voter</code>, when <code>Raft::change_membership()</code> adds it a
+<code>Voter</code>. A <code>Voter</code> will then become <code>Candidate</code> or <code>Leader</code>.</p>
+</li>
+<li>
+<p>When a node, no matter a <code>Learner</code> or <code>Voter</code>, is removed from membership, the
+leader stops replicating to it at once, i.e., when the new membership that
+does not contain the node is seen(no need to commit).</p>
+<p>The removed node won't receive any log replication or heartbeat from the
+leader. It will enter <code>Candidate</code> because it does not know it is removed.</p>
+</li>
+</ul>
+<h2 id="remove-a-node-from-membership-config"><a class="header" href="#remove-a-node-from-membership-config">Remove a node from membership config</a></h2>
+<p>When membership changes, e.g., from a joint config <code>[(1,2,3), (3,4,5)]</code> to uniform config <code>[3,4,5]</code>(assuming the leader is <code>3</code>), the leader
+stops replication to <code>1,2</code> when <code>[3,4,5]</code> is seen(not committed).</p>
+<p>It is correct because:</p>
+<ul>
+<li>
+<p>If the leader(<code>3</code>) finally committed <code>[3,4,5]</code>, it will eventually stop replication to <code>1,2</code>.</p>
+</li>
+<li>
+<p>If the leader(<code>3</code>) crashes before committing <code>[3,4,5]</code>:</p>
+<ul>
+<li>And a new leader sees the membership config log <code>[3,4,5]</code>, it will continue to commit it and finally stop replication to <code>1,2</code>.</li>
+<li>Or a new leader does not see membership config log <code>[3,4,5]</code>, it will re-establish replication to <code>1,2</code>.</li>
+</ul>
+</li>
+</ul>
+<p>In any case, stopping replication at once is OK.</p>
+<p>One of the considerations is:
+The nodes, e.g., <code>1,2</code> do not know they have been removed from the cluster:</p>
+<ul>
+<li>
+<p>Removed node will enter the candidate state and keeps increasing its term and electing itself.
+This won't affect the working cluster: </p>
+<ul>
+<li>
+<p>The nodes in the working cluster have greater logs; thus, the election will never succeed.</p>
+</li>
+<li>
+<p>The leader won't try to communicate with the removed nodes thus it won't see their higher <code>term</code>.</p>
+</li>
+</ul>
+</li>
+<li>
+<p>Removed nodes should be shut down finally. No matter whether the leader
+replicates the membership without these removed nodes to them, there should
+always be an external process that shuts them down. Because there is no
+guarantee that a removed node can receive the membership log in a finite time.</p>
+</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="metrics"><a class="header" href="#metrics">Metrics</a></h1>
 <p><code>Raft</code> exports metrics on its internal state via <code>Raft::metrics() -&gt; watch::Receiver&lt;RaftMetrics&gt;</code>.</p>
 <p><code>RaftMetrics</code> contains useful information such as:</p>
@@ -961,6 +1018,48 @@ needs.</p>
 <p>Build-snapshot to RaftCore: RaftCore spawn a separate task to build a snapshot
 asynchronously. When finished, the spawned task sends to RaftCore a message
 including the snapshot info.</p>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="vote"><a class="header" href="#vote">Vote</a></h1>
+<pre><pre class="playground"><code class="language-rust">
+<span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Vote&lt;NID: NodeId&gt; {
+    term: u64,
+    node_id: NID,
+    committed: bool
+}
+<span class="boring">}
+</span></code></pre></pre>
+<p><code>vote</code> in openraft defines the pseudo <strong>time</strong>(in other word, defines every <code>leader</code>) in a distributed consensus.
+Each <code>vote</code> can be thought as unique time point(in paxos the pseudo time is round-number or <code>rnd</code>, or <code>ballot-number</code>).</p>
+<p>In a standard raft, the corresponding concept is <code>term</code>.
+Although in standard raft a single <code>term</code> is not enough to define a <strong>time
+point</strong>.</p>
+<p>Every server state(leader, candidate, follower or learner) has a unique
+corresponding <code>vote</code>, thus <code>vote</code> can be used to identify different server
+states, i.e, if the <code>vote</code> changes, the server state must have changed.</p>
+<p>Note: follower and learner in openraft is almost the same. The only difference
+is a learner does not try to elect itself.</p>
+<p>Note: a follower will switch to a learner and vice versa without changing the <code>vote</code>, when a
+new membership log is replicated to a follower or learner.</p>
+<p>E.g.:</p>
+<ul>
+<li>
+<p>A vote <code>(term=1, node_id=2, committed=false)</code> is in a candidate state for
+node-2.</p>
+</li>
+<li>
+<p>A vote <code>(term=1, node_id=2, committed=true)</code> is in a leader state for
+node-2.</p>
+</li>
+<li>
+<p>A vote <code>(term=1, node_id=2, committed=false|true)</code> is in a follower/learner
+state for node-3.</p>
+</li>
+<li>
+<p>A vote <code>(term=1, node_id=1, committed=false|true)</code> is in another different
+follower/learner state for node-3.</p>
 </li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="replication"><a class="header" href="#replication">Replication</a></h1>
